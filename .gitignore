@@ -1,6 +1,5 @@
 .env
 .venv/
-.vscode/*
 Thumbs.db
 .DS_Store
 Mobile/.npm-cache/
