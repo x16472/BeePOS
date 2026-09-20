@@ -7,8 +7,6 @@ export const StorageService = {
   getTheme(): AppTheme { return localStorage.getItem('bee_pos_theme_v1') === 'light' ? 'light' : 'dark'; },
   setTheme(theme: AppTheme) { localStorage.setItem('bee_pos_theme_v1', theme); },
   getPin(): string { return localStorage.getItem('bee_pos_pin_v1') || '8888'; },
-  setPin(pin: string) { localStorage.setItem('bee_pos_pin_v1', pin); },
-  getOrders(): Order[] { return orders; },
   cacheOrders(value: Order[]) { orders = value; },
   getSyncLogs(): SyncLog[] { return logs; },
   cacheSyncLogs(value: SyncLog[]) { logs = value; },
@@ -30,4 +28,3 @@ export const StorageService = {
     return rows.map(row => row.map(quote).join(',')).join('\r\n');
   },
 };
-export default StorageService;

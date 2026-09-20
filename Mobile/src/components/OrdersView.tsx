@@ -1,8 +1,5 @@
 import React, { useState } from 'react';
-import { 
-  Receipt, Clock, CheckCircle, AlertCircle, Ban, Eye, X, 
-  DollarSign, Calculator, Calendar, FileText, ChevronRight, HardDriveDownload
-} from 'lucide-react';
+import { Receipt, Clock, CheckCircle, Ban, X, Calculator, ChevronRight } from 'lucide-react';
 import { Order, DailySettlement, AppTheme } from '../types';
 import { StorageService } from '../services/storage';
 

@@ -55,3 +55,13 @@
 - 更新 MSSQL 初始化／升級腳本，補上新訂單欄位；未連入或修改實際 MSSQL，舊版遠端需由使用者執行腳本後再同步。
 - 驗證結果：14 項 Python 測試全部通過，涵蓋同微秒編號、修改時間、舊資料遷移、YAML 驗證失敗時回復、初始化後修改／刪除不被還原，以及原有交易與同步測試。
 - 使用 `/Mobile` 已安裝依賴，`npm run lint` 與 `npm run build` 均通過。Go/Python HTTP 整合測試通過，含 YAML 初始化後新增商品、日期時間訂單、冪等重送、訂單狀態更新及行程清理。未進行瀏覽器視覺驗證或 MSSQL 實機驗證。
+
+## 2026-09-21：不涉及主架構的冗餘清理
+
+- 依 Phoenix 要求，檢查引用關係、啟動入口及 TypeScript 未使用診斷後清理，未修改 Go/Python 服務、資料庫結構、菜單 YAML 或交易流程。
+- 刪除 5 個檔案：`Mobile/src/data/initialData.ts`（已被 YAML 初始化取代且無引用）、`Mobile/src/services/index.ts`（無引用的重複匯出入口）、`Mobile/metadata.json`（未被目前網站引用的 AI Studio metadata）、`Mobile/README.md`（過時的 Gemini API 金鑰與 AI Studio 啟動說明，現行說明位於根目錄 README）、`Mobile/Mobile/package-lock.json`（誤建子目錄內 packages 為空的鎖定檔）。
+- 移除 5 個前端元件中共 17 個未使用的圖示匯入，以及同步頁已無對應視窗的重設狀態、未使用的已同步訂單變數。
+- 移除 `StorageService` 未被呼叫的 `setPin`、`getOrders` 與預設匯出，保留現有具名匯入及實際使用的方法。
+- 移除舊 `clean` npm 指令：其中仍指向不存在的 `server.js` 且使用 Unix 刪除語法。保留開發、建置、預覽與型別檢查指令，未調整依賴版本或主要 package-lock.json。
+- 驗證通過：`tsc --project Mobile/tsconfig.json --noEmit --noUnusedLocals --noUnusedParameters`、`npm --prefix Mobile run build`、14 項 Python 測試。未重跑瀏覽器視覺或 MSSQL 實機測試。
+- 本次確認工作目錄已有 Git 儲存庫，可用 `git diff` 檢視清理差異；未建立提交。保留 Venv、node_modules、建置產物、既有資料庫、紀錄檔、測試與需求文件。

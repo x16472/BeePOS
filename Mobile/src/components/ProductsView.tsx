@@ -1,7 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { 
-  UtensilsCrossed, Plus, Edit2, Trash2, Check, X, Star, AlertCircle, ToggleLeft, ToggleRight
-} from 'lucide-react';
+import { UtensilsCrossed, Plus, Edit2, Trash2, X, AlertCircle } from 'lucide-react';
 import { Product, AppTheme } from '../types';
 
 interface ProductsViewProps {

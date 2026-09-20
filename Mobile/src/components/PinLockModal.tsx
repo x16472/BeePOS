@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, Delete, KeyRound, Check } from 'lucide-react';
+import { Lock, Delete, KeyRound } from 'lucide-react';
 import { AppTheme } from '../types';
 
 interface PinLockModalProps {

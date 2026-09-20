@@ -1,8 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { 
-  ShoppingBag, Plus, Minus, Trash2, X, ChevronUp, ChevronDown, 
-  CheckCircle2, DollarSign, Calculator, AlertCircle, RefreshCw, Menu, Check
-} from 'lucide-react';
+import { ShoppingBag, Plus, Minus, Trash2, X, ChevronUp, ChevronDown, CheckCircle2, DollarSign, Calculator, AlertCircle, Menu, Check } from 'lucide-react';
 import { Product, CartItem, Order, OrderItem, AppTheme } from '../types';
 
 import { transactionId, ApiError } from '../services/api';

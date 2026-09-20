@@ -1,9 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Radio, HardDrive, ShieldCheck, Wifi, RefreshCw, Download, 
-  CheckCircle2, AlertTriangle, AlertCircle, Database, BatteryCharging, Server, Clock,
-  Moon, Sun, Palette, ArrowLeft
-} from 'lucide-react';
+import { Radio, HardDrive, RefreshCw, Download, CheckCircle2, AlertCircle, Server, Clock, Moon, Sun, Palette, ArrowLeft } from 'lucide-react';
 import { Order, SystemStatus, SyncLog, AppTheme } from '../types';
 import { Api } from '../services/api';
 import { StorageService } from '../services/storage';
@@ -32,18 +28,17 @@ export const SyncStatusView: React.FC<SyncStatusViewProps> = ({
   const [syncProgress, setSyncProgress] = useState<number>(0);
   const [syncSuccessMsg, setSyncSuccessMsg] = useState<string>('');
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>(StorageService.getSyncLogs());
-  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
 
   // Allow Escape key to return to cashier
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isResetConfirmOpen) {
+      if (e.key === 'Escape') {
         onBackToCashier?.();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onBackToCashier, isResetConfirmOpen]);
+  }, [onBackToCashier]);
 
   // Click on blank background area to return to cashier
   const handleBlankAreaClick = (e: React.MouseEvent<HTMLElement>) => {
@@ -55,7 +50,6 @@ export const SyncStatusView: React.FC<SyncStatusViewProps> = ({
   };
 
   const pendingOrders = orders.filter(o => o.sync_status === 'pending');
-  const syncedOrders = orders.filter(o => o.sync_status === 'synced');
 
   const handleTriggerSync = async () => {
     if (isSyncing) return;
