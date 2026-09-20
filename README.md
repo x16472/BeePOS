@@ -30,6 +30,57 @@ Go 主程式 Backend/main.go（預設 0.0.0.0:8080）
                          DB Sync → ODBC → MSSQL
 ```
 
+```mermaid
+flowchart TD
+    %% 前端與 UI 區塊
+    subgraph Client_Layer ["前端展示層 (Client Layer - POS Mobile UI)"]
+        UI["TypeScript Mobile Web App<br/>(AI Studio 已建置之 Mobile UI)"]
+    end
+
+    %% Arm 控制主機區塊
+    subgraph Edge_Arm_Server ["車載邊緣控制器 (Arm Host / Raspberry Pi / RK3588)"]
+        
+        subgraph Go_Core ["Go 核心微服務 (Core Controller)"]
+            MAINGO["Main.go<br/>- 服務進程生命週期管理<br/>- 監控 Python 服務狀態<br/>- 車載硬體/串口指令轉發<br/>- 系統健康檢查 (Health Check)"]
+        end
+
+        subgraph Python_Workers ["Python 子微服務 (Sub-services)"]
+            PY_API["Python Worker 1: App API<br/>(FastAPI / Flask)<br/>- 處理收銀 / 商品 API<br/>- 直接讀寫 SQLite"]
+            PY_SYNC["Python Worker 2: DB Sync Engine<br/>- 網路狀態探測 (Ping/VPN)<br/>- 雙向資料同步 (SQLite <-> MSSQL)"]
+        end
+
+        subgraph Local_Storage ["車載硬碟盒 / 本地儲存"]
+            SQLITE[("SQLite Database<br/>(transactions.db / config.db)<br/>開啟 WAL 模式")]
+        end
+    end
+
+    %% 車載實體硬體
+    subgraph Vehicle_Hardware ["12V 車載硬體設備 (Hardware Layer)"]
+        PRINTER["12V 感熱印表機<br/>(USB / Serial 串列埠)"]
+        DRAWER["12V 電磁錢箱<br/>(RJ11 / 繼電器觸發)"]
+    end
+
+    %% 遠端 Home Lab
+    subgraph Home_Lab ["遠端 Home Lab (Cloud / Cloudlet)"]
+        VPN["VPN Gateway / VPN Tunnel"]
+        MSSQL[("Home Lab SQL Server<br/>(MSSQL Central DB)")]
+    end
+
+    %% 連線關係
+    UI -- "REST / WebSocket (HTTP)" --> PY_API
+    MAINGO -- "Process Control / IPC / Subprocess" --> PY_API
+    MAINGO -- "Process Control / IPC / Subprocess" --> PY_SYNC
+    
+    PY_API -- "讀寫交易與菜單資料" --> SQLITE
+    PY_SYNC -- "1. 讀取未同步資料 (is_synced=0)" --> SQLITE
+    
+    PY_SYNC -. "2. VPN 連線穩定時批次同步" .-> VPN
+    VPN -.-> MSSQL
+
+    MAINGO -- "ESC/POS 驅動開錢箱/出單" --> PRINTER
+    PRINTER -- "RJ11 脈衝訊號" --> DRAWER
+```
+
 Go 使用標準函式庫管理 Python 行程與 HTTP 代理；子行程結束後等待 3 秒重啟。Python HTTP 服務使用標準函式庫 `ThreadingHTTPServer`，菜單解析使用 PyYAML，遠端資料庫使用選用的 pyodbc。前端使用 React 19、TypeScript、Vite、Tailwind CSS 與 Lucide 圖示。
 
 ## 專案目錄
