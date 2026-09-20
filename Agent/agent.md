@@ -14,4 +14,4 @@
 -   [/Database](/Database/):連入資料庫的後端程式碼（用`Python`效仿`MVC`的`Controller`）以及離線資料庫`*.db`，以及基於`*.log`、`*.txt`格式的操作紀錄檔和系統紀錄檔存放的位置（系統紀錄一律用`*.log`，操作紀錄用`*.txt`。
 -   [/Mobile](/Mobile/):這邊是已經用`AI Studio`製作好的前台網站。
 -   主要流程圖在[PRD.md](/Agent/PRD.md)會寫的比較詳細。
--   菜單
+-   菜單部分請參考第二張圖，用 [menu.yaml](Database/Menu/menu.yaml) 的建立資料。菜單資料依照此檔案的結構畫內容初始化，後續再寫入本地離線資料庫當中。
