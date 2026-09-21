@@ -16,70 +16,104 @@ Bee POS 是供單車餐車與行動攤販使用的現金收銀系統。React／T
 | 介面 | 深／淺色主題、畫面 PIN 鎖定、每 10 秒重新讀取資料與同步狀態 |
 | 同步 | 本機異動上傳與遠端資料下載程式、背景排程及手動同步入口；目前已知問題見文末 |
 
-```text
-區網瀏覽器
-    │ HTTP：網站與 /api/*
-    ▼
-Go 主程式 Backend/main.go（預設 0.0.0.0:8080）
-    ├─ 靜態網站：Mobile/dist
-    ├─ /api/sync、/api/sync/* → Python DB Sync（127.0.0.1:8766）
-    └─ 其他 /api/*            → Python App API（127.0.0.1:8765）
-                                   │
-                         SQLite：Database/bee_pos.db
-                                   │
-                         DB Sync → ODBC → MSSQL
-```
+### 系統架構圖（依 PRD 分層，對照目前實作）
+
+以下以 [PRD 的系統架構圖](Agent/PRD.md#2-系統架構圖-system-topology) 為主，保留前端展示層、車載邊緣控制器、Go 核心、Python 子服務、本地儲存、車載硬體與 Home Lab 分層，並補上現行網站入口、菜單初始化及紀錄檔。ACC／GPIO、UDS、WebSocket、VPN 與硬體控制依 PRD 列為規劃；不代表程式已提供這些能力。
+
+目前以 Windows 主機模擬 ARM 車載主機。瀏覽器統一連到 Go，Go 再代理至只監聽 loopback 的 Python 服務。圖中實線為目前程式中的啟動、代理或資料流，虛線為 PRD 尚未實作的連線；灰色節點為尚未接入的設備或通道。
 
 ```mermaid
 flowchart TD
-    %% 前端與 UI 區塊
-    subgraph Client_Layer ["前端展示層 (Client Layer - POS Mobile UI)"]
-        UI["TypeScript Mobile Web App<br/>(AI Studio 已建置之 Mobile UI)"]
+    subgraph Client_Layer["前端展示層｜手機、平板、電腦"]
+        UI["Mobile：React + TypeScript<br/>收銀／訂單／商品／同步畫面"]
     end
 
-    %% Arm 控制主機區塊
-    subgraph Edge_Arm_Server ["車載邊緣控制器 (Arm Host / Raspberry Pi / RK3588)"]
-        
-        subgraph Go_Core ["Go 核心微服務 (Core Controller)"]
-            MAINGO["Main.go<br/>- 服務進程生命週期管理<br/>- 監控 Python 服務狀態<br/>- 車載硬體/串口指令轉發<br/>- 系統健康檢查 (Health Check)"]
+    subgraph Edge_Arm_Server["車載邊緣控制器｜ARM / Raspberry Pi / RK3588 規劃；目前以 Windows 模擬"]
+        subgraph Go_Core["Go 核心微服務｜API Gateway 與行程管理"]
+            START["start.bat<br/>檢查依賴 → 建置前端 → 編譯 Go"]
+            MAINGO["Backend/main.go<br/>區網 HTTP 入口：8080<br/>啟動、重啟與停止 Python 子行程"]
+            DIST["Mobile/dist<br/>前端靜態網站"]
         end
 
-        subgraph Python_Workers ["Python 子微服務 (Sub-services)"]
-            PY_API["Python Worker 1: App API<br/>(FastAPI / Flask)<br/>- 處理收銀 / 商品 API<br/>- 直接讀寫 SQLite"]
-            PY_SYNC["Python Worker 2: DB Sync Engine<br/>- 網路狀態探測 (Ping/VPN)<br/>- 雙向資料同步 (SQLite <-> MSSQL)"]
+        subgraph Python_Workers["Python 子微服務｜共用專案 .venv"]
+            PY_API["Python Worker 1：app_backend.py<br/>127.0.0.1:8765<br/>透過 store.py 驗證、計價與讀寫資料"]
+            PY_SYNC["Python Worker 2：app_db_sync.py<br/>127.0.0.1:8766<br/>背景排程／手動同步入口"]
         end
 
-        subgraph Local_Storage ["車載硬碟盒 / 本地儲存"]
-            SQLITE[("SQLite Database<br/>(transactions.db / config.db)<br/>開啟 WAL 模式")]
+        subgraph Local_Storage["本地儲存｜Database"]
+            MENU["Menu/menu.yaml<br/>首次菜單來源：3 類、14 項商品"]
+            SQLITE[("bee_pos.db｜SQLite<br/>WAL、外鍵、交易<br/>鎖定等待最長 10 秒")]
+            LOG["系統紀錄：*.log<br/>操作紀錄：operations.txt"]
         end
     end
 
-    %% 車載實體硬體
-    subgraph Vehicle_Hardware ["12V 車載硬體設備 (Hardware Layer)"]
-        PRINTER["12V 感熱印表機<br/>(USB / Serial 串列埠)"]
-        DRAWER["12V 電磁錢箱<br/>(RJ11 / 繼電器觸發)"]
+    subgraph Vehicle_Hardware["車載硬體｜PRD 規劃，尚未實作"]
+        ACC["車載 ACC 電源訊號<br/>GPIO 點火／熄火偵測"]
+        PRINTER["12V 感熱印表機<br/>USB／Serial、ESC/POS"]
+        DRAWER["12V 電磁錢箱<br/>印表機 RJ11 接口"]
     end
 
-    %% 遠端 Home Lab
-    subgraph Home_Lab ["遠端 Home Lab (Cloud / Cloudlet)"]
-        VPN["VPN Gateway / VPN Tunnel"]
-        MSSQL[("Home Lab SQL Server<br/>(MSSQL Central DB)")]
+    subgraph Home_Lab["遠端 Home Lab"]
+        MSSQL[("MSSQL Central Database<br/>手動建立結構及設定連線")]
+        VPN["VPN Gateway／Tunnel<br/>預留，尚未實作"]
     end
 
-    %% 連線關係
-    UI -- "REST / WebSocket (HTTP)" --> PY_API
-    MAINGO -- "Process Control / IPC / Subprocess" --> PY_API
-    MAINGO -- "Process Control / IPC / Subprocess" --> PY_SYNC
-    
-    PY_API -- "讀寫交易與菜單資料" --> SQLITE
-    PY_SYNC -- "1. 讀取未同步資料 (is_synced=0)" --> SQLITE
-    
-    PY_SYNC -. "2. VPN 連線穩定時批次同步" .-> VPN
-    VPN -.-> MSSQL
+    START -->|"啟動"| MAINGO
+    UI <-->|"現行：區網 HTTP 網站與 /api/*"| MAINGO
+    DIST -->|"由 Go 提供網站"| MAINGO
+    MAINGO -->|"子行程管理；代理業務 HTTP API"| PY_API
+    MAINGO -->|"子行程管理；代理 /api/sync 路由"| PY_SYNC
+    PY_API <-->|"菜單讀取與收銀交易"| SQLITE
+    MENU -->|"menu_loader.py 驗證並一次性匯入"| SQLITE
+    PY_SYNC <-->|"讀取待同步異動／寫回結果"| SQLITE
+    PY_SYNC <-->|"現行同步引擎：pyodbc 上傳與下載"| MSSQL
+    MAINGO -->|"主機系統紀錄"| LOG
+    PY_API -->|"業務與操作紀錄"| LOG
+    PY_SYNC -->|"同步系統紀錄"| LOG
 
-    MAINGO -- "ESC/POS 驅動開錢箱/出單" --> PRINTER
-    PRINTER -- "RJ11 脈衝訊號" --> DRAWER
+    UI -.->|"PRD：直接呼叫業務 REST API"| PY_API
+    UI -.->|"PRD：WebSocket 硬體控制"| MAINGO
+    MAINGO -.->|"PRD：UDS 通訊"| PY_API
+    MAINGO -.->|"PRD：UDS 通訊"| PY_SYNC
+    PY_API -.->|"PRD：雙向內部 API / UDS"| PY_SYNC
+    ACC -.->|"PRD：GPIO 中斷訊號"| MAINGO
+    MAINGO -.->|"PRD：ESC/POS 出單與開箱"| PRINTER
+    PRINTER -.->|"規劃：RJ11 開箱脈衝"| DRAWER
+    PY_SYNC -.->|"規劃：透過 VPN 連線"| VPN
+    VPN -.->|"規劃通道"| MSSQL
+
+    classDef service fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef storage fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef remote fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef planned fill:#f1f5f9,stroke:#64748b,color:#475569,stroke-dasharray:5 5
+    class UI,START,MAINGO,PY_API,PY_SYNC service
+    class DIST,MENU,SQLITE,LOG storage
+    class MSSQL remote
+    class ACC,PRINTER,DRAWER,VPN planned
 ```
+
+PRD 的瀏覽器直連業務服務、WebSocket 硬體通道及 UDS 尚未啟用；部署目前版本時只需讓用戶端連到 Go，不需對區網開放 Python 內部連接埠。兩個 Python 服務共用 SQLite，目前沒有彼此直接呼叫的內部 API。PRD 圖將印表機控制放在 Go，模組文字也描述 Python 的硬體職責；目前兩端皆未實作驅動，本圖沿用 PRD 圖的規劃方向。
+
+同步 HTTP 路徑雖已有 Go 代理設定，目前處理器仍有參數不一致問題，詳見[目前限制與已知問題](#目前限制與已知問題)。圖中的 MSSQL 連線代表同步程式的目標，並不表示環境已連線或完成實機驗證。
+
+正常收銀的資料路徑是「瀏覽器 → Go → Python 業務服務 → SQLite」，不等待 MSSQL。同步服務另外處理本機與遠端的資料交換；YAML 只在尚未完成菜單初始化時匯入，後續以 SQLite 為準。
+
+### 與 PRD 的實作對照
+
+| PRD 規劃 | 目前程式碼 |
+| --- | --- |
+| ARM 車載控制器與 systemd | Windows `start.bat` 啟動 Go；ARM、`start.sh` 與 systemd 尚未驗證／實作 |
+| Go 調度兩個 Python 服務 | 已實作子行程管理，退出後等待 3 秒重啟；未實作卡死偵測 |
+| REST／WebSocket 通訊 | 目前使用 HTTP／JSON；前端每 10 秒輪詢，未實作 WebSocket |
+| 前端直接呼叫 Python 業務 API | 目前全部經 Go 同源代理，Python 只監聽 `127.0.0.1` |
+| Go／Python 與 Python 服務間 UDS | Go 透過作業系統子行程管理與 loopback HTTP 代理；未實作 Unix Domain Socket 或 Python 間直接通訊 |
+| FastAPI／Flask 業務服務 | 目前使用標準函式庫 `ThreadingHTTPServer` 與共用 HTTP 處理器 |
+| 多個本機 DB 與 `is_synced` | 目前為單一 `bee_pos.db`；以 `sync_state.dirty`、版本與同步時間追蹤異動 |
+| SQLite WAL 與 Busy Timeout | 已使用 WAL，`sqlite3.connect(timeout=10)` 設定最多 10 秒鎖定等待，並啟用外鍵與 `synchronous=FULL` |
+| VPN／網路狀態偵測 | 目前直接依 ODBC 連線字串嘗試 MSSQL 同步，未控制 VPN 或偵測 SSID |
+| ESC/POS、印表機與錢箱 | 僅保留 API；結帳回傳 `HARDWARE_OFFLINE`，仍儲存本機交易 |
+| ACC 電源訊號與 GPIO 中斷 | 未實作點火／熄火偵測、GPIO 監控或車載電源控制 |
+| 第三方支付 | 僅保留 API，目前只支援現金結帳 |
 
 Go 使用標準函式庫管理 Python 行程與 HTTP 代理；子行程結束後等待 3 秒重啟。Python HTTP 服務使用標準函式庫 `ThreadingHTTPServer`，菜單解析使用 PyYAML，遠端資料庫使用選用的 pyodbc。前端使用 React 19、TypeScript、Vite、Tailwind CSS 與 Lucide 圖示。
 
@@ -178,6 +212,25 @@ categories:
 
 YAML 是初始資料來源，初始化後以 SQLite 為準。後續請透過商品頁管理菜單；修改 YAML 不會自動更新已初始化的資料庫，目前沒有重新匯入按鈕。瀏覽器舊版範例資料不會自動匯入。
 
+### 初始化流程
+
+```mermaid
+flowchart TD
+    START["Python 服務啟動<br/>store.initialize"] --> SCHEMA["建立 SQLite 結構<br/>補齊舊訂單欄位"]
+    SCHEMA --> LOCK["取得 SQLite 寫入鎖"]
+    LOCK --> CHECK{"已有 menu_yaml_v1 標記？"}
+    CHECK -->|"有"| KEEP["使用現有 SQLite 菜單<br/>保留改價、停售與刪除"]
+    CHECK -->|"無"| LOAD["safe_load 讀取 menu.yaml<br/>驗證全部分類與商品"]
+    LOAD --> VALID{"驗證通過？"}
+    VALID -->|"否"| FAIL["回復初始化交易並回報錯誤<br/>不留下部分菜單或完成標記"]
+    VALID -->|"是"| INSERT["新增缺少的分類與商品<br/>相同 ID 或同分類同名稱保留原值"]
+    INSERT --> MARK["標記新增資料待同步<br/>寫入 menu_yaml_v1"]
+    MARK --> COMMIT["提交同一筆交易"]
+    COMMIT --> KEEP
+```
+
+兩個 Python 服務皆會呼叫初始化；寫入鎖與完成標記避免同時啟動造成重複匯入。
+
 ## 訂單與本機資料規則
 
 新訂單編號由主機依臺灣時間產生，例如 `20260921-023420-123456`，格式為 `YYYYMMDD-HHmmss-ffffff`，最後六位為微秒。SQLite 寫入鎖內若遇到相同編號便遞增微秒。修改訂單不改編號，另外更新 `updated_at`；建立與修改時間保存為 UTC ISO8601，介面以臺灣時間顯示。不另建立每筆訂單檔案。
@@ -188,11 +241,50 @@ YAML 是初始資料來源，初始化後以 SQLite 為準。後續請透過商�
 
 前端在送出結帳時將待確認交易保留於原分頁的 `sessionStorage`，成功回應後才清空購物車；連線或回應不確定時可使用相同請求重試。這不是完整購物車持久化，也不保證關閉分頁後恢復。
 
-SQLite 使用 WAL、外鍵與 `synchronous=FULL`。主要資料表為 `categories`、`products`、`orders`、`order_items`、`settlements`，另以 `sync_state`、`sync_logs`、`initialization_state` 保存同步與初始化資訊。不建立 View；總額、小計、找零由 Python 計算。
+SQLite 使用 WAL、外鍵與 `synchronous=FULL`，每個連線的鎖定等待上限為 10 秒。主要資料表為 `categories`、`products`、`orders`、`order_items`、`settlements`，另以 `sync_state`、`sync_logs`、`initialization_state` 保存同步與初始化資訊。不建立 View；總額、小計、找零由 Python 計算。這些設定提供交易一致性與寫入保護，並不代表已驗證車載斷電或硬碟故障情境。
 
 商品使用軟刪除，訂單使用作廢狀態，不提供訂單實體刪除 API。日結保存盤點日期、實際現金、備註與建立時間，應收及差額依臺灣當日有效訂單計算，尚未實作不可變的會計封帳。
 
 訂單頁的當日統計僅計算臺灣當日已完成訂單，但列表目前依狀態篩選全部已載入訂單，不限當日。CSV／JSON 也匯出全部已載入訂單，不包含商品、日結或同步資料，不能當成完整 SQLite 備份。
+
+### 現金結帳流程
+
+```mermaid
+sequenceDiagram
+    participant UI as 瀏覽器
+    participant GO as Go HTTP 代理
+    participant APP as Python 業務服務
+    participant DB as SQLite
+
+    UI->>UI: 保存請求 UUID 與內容至 sessionStorage
+    UI->>GO: POST /api/orders
+    GO->>APP: 轉送 JSON
+    APP->>DB: BEGIN IMMEDIATE；查詢 request_id
+    alt 同一請求已成立且內容相同
+        DB-->>APP: 既有訂單
+        APP-->>GO: 回傳原訂單，不重複寫入
+    else 新請求
+        APP->>DB: 讀取商品價格與啟用狀態
+        APP->>APP: 驗證品項、數量與實收金額
+        alt 驗證成功
+            APP->>DB: 寫入日期時間編號、訂單與明細
+            APP->>DB: 標記待同步並提交交易
+            APP-->>GO: 正式訂單、找零與硬體未接入警告
+        else 驗證失敗
+            APP->>DB: 回復交易
+            APP-->>GO: 400 與原因
+        end
+    end
+    GO-->>UI: 轉送結果
+    alt 成功收到訂單
+        UI->>UI: 移除待確認請求、清空購物車、顯示找零
+    else 連線中斷或結果不確定
+        UI->>UI: 保留請求，以相同 UUID 與內容重試
+    end
+    Note over APP,DB: 此流程只依賴本機 SQLite，不等待 MSSQL
+```
+
+同一請求 UUID 搭配不同內容會被拒絕；日期時間訂單主鍵由主機分配，不採用前端 UUID 作為正式訂單編號。
 
 ## MSSQL 設定與同步
 
@@ -202,7 +294,7 @@ SQLite 使用 WAL、外鍵與 `synchronous=FULL`。主要資料表為 `categorie
 .\.venv\Scripts\python.exe -m pip install -r Database/requirements.txt
 ```
 
-在專供 Bee POS 使用的 MSSQL 資料庫執行 `Database/mssql_schema.sql`，再設定連線字串。此脚本建立資料表，不會建立資料庫；Go／Python 啟動時也不會自動執行遠端結構腳本。
+在專供 Bee POS 使用的 MSSQL 資料庫執行 `Database/mssql_schema.sql`，再設定連線字串。此腳本建立資料表，不會建立資料庫；Go／Python 啟動時也不會自動執行遠端結構腳本。
 
 ```powershell
 $env:BEE_MSSQL_CONNECTION_STRING = 'DRIVER={ODBC Driver 18 for SQL Server};SERVER=伺服器位址;DATABASE=BeePOS;Trusted_Connection=yes;Encrypt=yes;TrustServerCertificate=no;'
@@ -322,6 +414,6 @@ Python 測試使用暫存 SQLite，同步以替身模擬 ODBC 行為，無法取
 - 同步服務目前只捕捉指定的 Python 例外種類，未全面涵蓋 pyodbc／SQLite 錯誤；未捕捉的錯誤可能中止背景同步執行緒，且不一定更新同步狀態。主機仍存活時，Go 不會因背景執行緒停止而重啟服務。
 - 同步為全表下載，尚未實作大資料量分頁、多車衝突合併或刪除傳播。
 - PIN 預設為 `8888`，只鎖定前端畫面；目前無 PIN 設定介面、後端帳號認證或 HTTPS 終端。本版以受信任區網營運為前提。
-- 未實作 Wi-Fi SSID 偵測、VPN 通道、第三方支付、印表機／錢箱、WebSocket 推播、Go 請求重試佇列與卡死行程的健康重啟。
+- 未實作 Wi-Fi SSID 偵測、VPN 通道、第三方支付、印表機／錢箱、ACC／GPIO 點火熄火偵測、UDS 通訊、WebSocket 推播、Go 請求重試佇列與卡死行程的健康重啟。
 
-本文件依目前程式碼整理；需求規劃與歷史驗證分別記錄於 `Agent/PRD.md`、`Agent/agent.md` 與 `Agent/History.md`。歷史紀錄不代表每次後續修改都已重新驗證。
+本文件於 2026-09-21 依目前程式碼核對更新。本次僅更新 README，未執行會產生檔案的建置、測試或服務啟動，也未修改上述已知問題。需求規劃與歷史驗證分別記錄於 `Agent/PRD.md`、`Agent/agent.md` 與 `Agent/History.md`；歷史紀錄不代表每次後續修改都已重新驗證。

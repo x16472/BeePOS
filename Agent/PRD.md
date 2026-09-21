@@ -42,21 +42,22 @@ flowchart TD
     subgraph Edge_Arm_Server ["車載邊緣控制器 (Arm Host / Raspberry Pi / RK3588)"]
         
         subgraph Go_Core ["Go 核心微服務 (Core Controller)"]
-            MAINGO["Main.go<br/>- 服務進程生命週期管理<br/>- 監控 Python 服務狀態<br/>- 車載硬體/串口指令轉發<br/>- 系統健康檢查 (Health Check)"]
+            MAINGO["Main.go<br/>- 服務進程生命週期管理<br/>- 監控 Python 服務狀態<br/>- 系統健康檢查 (Health Check)<br/>- 監控車載 GPIO (ACC 狀態)"]
         end
 
         subgraph Python_Workers ["Python 子微服務 (Sub-services)"]
-            PY_API["Python Worker 1: App API<br/>(FastAPI / Flask)<br/>- 處理收銀 / 商品 API<br/>- 直接讀寫 SQLite"]
+            PY_API["Python Worker 1: App API<br/>(FastAPI / Flask)<br/>- 處理收銀 / 商品 API"]
             PY_SYNC["Python Worker 2: DB Sync Engine<br/>- 網路狀態探測 (Ping/VPN)<br/>- 雙向資料同步 (SQLite <-> MSSQL)"]
         end
 
         subgraph Local_Storage ["車載硬碟盒 / 本地儲存"]
-            SQLITE[("SQLite Database<br/>(transactions.db / config.db)<br/>開啟 WAL 模式")]
+            SQLITE[("SQLite Database<br/>(transactions.db / config.db)<br/>開啟 WAL 模式 + Busy Timeout")]
         end
     end
 
     %% 車載實體硬體
     subgraph Vehicle_Hardware ["12V 車載硬體設備 (Hardware Layer)"]
+        ACC["車載 ACC 電源訊號<br/>(GPIO 點火/熄火偵測)"]
         PRINTER["12V 感熱印表機<br/>(USB / Serial 串列埠)"]
         DRAWER["12V 電磁錢箱<br/>(RJ11 / 繼電器觸發)"]
     end
@@ -67,17 +68,28 @@ flowchart TD
         MSSQL[("Home Lab SQL Server<br/>(MSSQL Central DB)")]
     end
 
-    %% 連線關係
-    UI -- "REST / WebSocket (HTTP)" --> PY_API
-    MAINGO -- "Process Control / IPC / Subprocess" --> PY_API
-    MAINGO -- "Process Control / IPC / Subprocess" --> PY_SYNC
+    %% ==================== 連線與資料流關係 ====================
     
-    PY_API -- "讀寫交易與菜單資料" --> SQLITE
-    PY_SYNC -- "1. 讀取未同步資料 (is_synced=0)" --> SQLITE
+    %% 前端外部連線
+    UI -- "1. 業務邏輯 API (HTTP REST)" --> PY_API
+    UI -- "2. 硬體控制指令 (WebSocket)" --> MAINGO
     
-    PY_SYNC -. "2. VPN 連線穩定時批次同步" .-> VPN
+    %% Go 核心對子進程控制
+    MAINGO -- "進程管理 / Unix Domain Socket (UDS)" --> PY_API
+    MAINGO -- "進程管理 / Unix Domain Socket (UDS)" --> PY_SYNC
+    
+    %% 資料庫存取與內部 IPC 流向 (已修正語法錯誤)
+    PY_API -- "讀取菜單資料" --> SQLITE
+    SQLITE -- "回傳菜單資料" --> PY_API
+    PY_API <--> |"高頻讀寫交易資料"| SQLITE
+    PY_API <--> |"內部 API / UDS 互動"| PY_SYNC
+    
+    %% 遠端同步鏈路
+    PY_SYNC -. "VPN 連線穩定時批次同步" .-> VPN
     VPN -.-> MSSQL
 
+    %% 硬體驅動與電源訊號
+    ACC -- "中斷訊號 (Interrupt)" --> MAINGO
     MAINGO -- "ESC/POS 驅動開錢箱/出單" --> PRINTER
     PRINTER -- "RJ11 脈衝訊號" --> DRAWER
 ```
