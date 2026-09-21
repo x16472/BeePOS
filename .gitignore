@@ -4,14 +4,7 @@ Thumbs.db
 .DS_Store
 Mobile/.npm-cache/
 Mobile/dist/
-Mobile/Mobile/
 Mobile/node_modules/
-Mobile/build/
-Mobile/coverage/
-Mobile/*.log
-Mobile/.env*
-Mobile/.env.example
-Mobile/
 Backend/beepos.exe
 Backend/__pycache__/
 Database/*.db*
