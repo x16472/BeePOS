@@ -254,8 +254,8 @@ export const CashierView: React.FC<CashierViewProps> = ({ products, onCompleteOr
     // 正式訂單編號由主機依建立時間分配。
     const orderNo = '待主機編號';
     const newOrderItems: OrderItem[] = cart.map((item, idx) => ({
-      id: `it-${Date.now()}-${idx}`,
-      order_id: '',
+      id: -(idx + 1),
+      order_id: 0,
       product_id: item.productId,
       product_name: item.name,
       unit_price: item.price,
@@ -264,7 +264,8 @@ export const CashierView: React.FC<CashierViewProps> = ({ products, onCompleteOr
     }));
 
     const newOrder: Order = {
-      id: transactionId(),
+      id: 0,
+      request_id: transactionId(),
       order_no: orderNo,
       created_at: new Date().toISOString(),
       total_amount: totalAmount,

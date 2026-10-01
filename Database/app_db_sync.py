@@ -134,7 +134,7 @@ def synchronize():
                         (
                             table,
                             row["id"],
-                            versions.get((table, row["id"]), store.identifier()),
+                            versions.get((table, row["id"]), 1),
                             timestamp,
                         ),
                     )
@@ -169,15 +169,15 @@ def synchronize():
 def record(status, count, message):
     with store.database() as con:
         con.execute(
-            "INSERT INTO sync_logs VALUES (?,?,?,?,?)",
-            (store.identifier(), store.now(), count, status, message),
+            "INSERT INTO sync_logs (timestamp,orders_synced,status,message) VALUES (?,?,?,?)",
+            (store.now(), count, status, message),
         )
         con.execute(
             "DELETE FROM sync_logs WHERE id NOT IN (SELECT id FROM sync_logs ORDER BY timestamp DESC LIMIT 100)"
         )
 
 
-def dispatch(method, path):
+def dispatch(method, path, data=None):
     if method == "POST" and path == "/api/sync":
         return synchronize()
     if method == "GET" and path == "/api/sync/status":

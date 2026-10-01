@@ -5,8 +5,8 @@ import { Product, AppTheme } from '../types';
 interface ProductsViewProps {
   products: Product[];
   onSaveProduct: (product: Product) => Promise<void>;
-  onDeleteProduct: (productId: string) => Promise<void>;
-  onToggleActive: (productId: string) => Promise<void>;
+  onDeleteProduct: (productId: number) => Promise<void>;
+  onToggleActive: (productId: number) => Promise<void>;
   theme?: AppTheme;
 }
 
@@ -21,7 +21,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('全部');
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [deletingProduct, setDeletingProduct] = useState<{ id: string; name: string } | null>(null);
+  const [deletingProduct, setDeletingProduct] = useState<{ id: number; name: string } | null>(null);
   const [formError, setFormError] = useState<string>('');
 
   // Form states
@@ -73,7 +73,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     }
 
     const newOrUpdated: Product = {
-      id: editingProduct ? editingProduct.id : `p-${Date.now()}`,
+      id: editingProduct ? editingProduct.id : 0,
       name: name.trim(),
       category: category.trim() || '其他',
       price,
@@ -90,7 +90,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setFormError('');
   };
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = (id: number, name: string) => {
     setDeletingProduct({ id, name });
   };
 

@@ -113,10 +113,10 @@ def main():
             assert len(json.loads(request("/api/orders")[1])) == 1
             assert request("/api/sync", "POST", {})[0] == 503
             assert json.loads(request("/api/orders")[1])[0]["sync_status"] == "pending"
-            assert request("/api/products/" + product["id"], "DELETE")[0] == 200
+            assert request("/api/products/" + str(product["id"]), "DELETE")[0] == 200
             assert (
                 request(
-                    "/api/orders/" + order_id,
+                    "/api/orders/" + str(order_id),
                     "PATCH",
                     {"status": "cancelled", "note": "測試"},
                 )[0]
@@ -126,9 +126,12 @@ def main():
             if os.name == "nt":
                 subprocess.run(
                     ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                    check=True,
+                    check=False,
                     stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                 )
+                if process.poll() is None:
+                    process.kill()
             else:
                 os.killpg(process.pid, signal.SIGTERM)
             process.wait(timeout=10)

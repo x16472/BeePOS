@@ -161,7 +161,7 @@ class BackendTests(unittest.TestCase):
         with closing(sqlite3.connect(path)) as con:
             con.executescript((store.ROOT / "schema.sql").read_text(encoding="utf-8"))
             con.execute(
-                "CREATE TABLE IF NOT EXISTS sync_versions (entity TEXT,entity_id TEXT,version TEXT,PRIMARY KEY(entity,entity_id))"
+                "CREATE TABLE IF NOT EXISTS sync_versions (entity TEXT,entity_id INTEGER,version INTEGER,PRIMARY KEY(entity,entity_id))"
             )
             con.commit()
         return RemoteConnection(path, **kwargs)
@@ -193,15 +193,14 @@ class BackendTests(unittest.TestCase):
             first = store.checkout(self.payload)
             self.payload['id'] = store.identifier()
             second = store.checkout(self.payload)
-        self.assertEqual(first['id'], '20260921-023420-123456')
-        self.assertEqual(second['id'], '20260921-023420-123457')
+        self.assertEqual((first['id'], second['id']), (1, 2))
         self.assertEqual(first['created_at'], first['updated_at'])
         with patch.object(store, 'now', return_value='2026-09-20T19:00:00+00:00'):
             store.update_order(first['id'], {'status': 'cancelled'})
         updated = store.orders(first['id'])[0]
         self.assertEqual(updated['created_at'], first['created_at'])
         self.assertEqual(updated['updated_at'], '2026-09-20T19:00:00+00:00')
-        self.assertEqual(updated['order_no'], '#' + first['id'])
+        self.assertEqual(updated['order_no'], '#20260921-023420-123456')
 
     def test_menu_seed_once_preserves_edits_and_deletions(self):
         from menu_loader import initialize_menu, load_menu, MENU_PATH
@@ -209,15 +208,16 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(len(expected), 14)
         initialize_menu()
         self.assertEqual(len(store.products()), 15)
-        seeded = next(p for p in store.products() if p['id'] == 'p1')
+        seeded = next(p for p in store.products() if p['name'] == '招牌排骨便當')
         self.assertEqual((seeded['name'], seeded['price']), ('招牌排骨便當', 100))
-        store.save_product(dict(seeded, price=120), 'p1')
-        store.delete_product('p2')
+        store.save_product(dict(seeded, price=120), seeded['id'])
+        deleted = next(p for p in store.products() if p['name'] == '香酥大雞腿飯')
+        store.delete_product(deleted['id'])
         store.initialize()
-        self.assertEqual(next(p for p in store.products() if p['id'] == 'p1')['price'], 120)
-        self.assertNotIn('p2', [p['id'] for p in store.products()])
+        self.assertEqual(next(p for p in store.products() if p['id'] == seeded['id'])['price'], 120)
+        self.assertNotIn(deleted['id'], [p['id'] for p in store.products()])
         with store.database() as con:
-            self.assertEqual(con.execute("SELECT dirty FROM sync_state WHERE entity='products' AND entity_id='p1'").fetchone()[0], 1)
+            self.assertEqual(con.execute("SELECT dirty FROM sync_state WHERE entity='products' AND entity_id=?", (seeded['id'],)).fetchone()[0], 1)
 
     def test_bad_menu_rolls_back_all_seed_data(self):
         from menu_loader import initialize_menu
@@ -242,9 +242,10 @@ class BackendTests(unittest.TestCase):
             store.initialize(seed_menu=False)
             with store.database() as con:
                 row = con.execute('SELECT * FROM orders').fetchone()
-                self.assertEqual(row['id'], 'legacy-id')
+                self.assertEqual(row['id'], 1)
                 self.assertEqual(row['request_id'], 'legacy-id')
                 self.assertEqual(row['updated_at'], row['created_at'])
+                self.assertEqual(con.execute('PRAGMA foreign_key_check').fetchall(), [])
         finally:
             store.DB_PATH = original
 

@@ -1,5 +1,5 @@
 export interface Product {
-  id: string;
+  id: number;
   name: string;
   category: string;
   price: number;
@@ -8,9 +8,9 @@ export interface Product {
 }
 
 export interface OrderItem {
-  id: string;
-  order_id: string;
-  product_id?: string;
+  id: number;
+  order_id: number;
+  product_id?: number;
   product_name: string;
   unit_price: number;
   quantity: number;
@@ -18,7 +18,8 @@ export interface OrderItem {
 }
 
 export interface Order {
-  id: string;
+  id: number;
+  request_id?: string;
   order_no: string; // 臺灣時間 YYYYMMDD-HHmmss-ffffff
   created_at: string;
   updated_at?: string;
@@ -33,14 +34,15 @@ export interface Order {
 }
 
 export interface CartItem {
-  productId?: string;
+  productId?: number;
   name: string;
   price: number;
   quantity: number;
 }
 
 export interface DailySettlement {
-  id: string;
+  id: number;
+  request_id?: string;
   date: string;
   total_sales: number;
   order_count: number;
@@ -52,7 +54,7 @@ export interface DailySettlement {
 }
 
 export interface SyncLog {
-  id: string;
+  id: number;
   timestamp: string;
   orders_synced: number;
   status: 'success' | 'failed';

@@ -61,7 +61,7 @@ export default function App() {
   };
   const handleCompleteOrder = async (order: Order): Promise<Order> => {
     const saved = await request<Order>('/orders', 'POST', {
-      id: order.id, received_amount: order.received_amount,
+      id: order.request_id, received_amount: order.received_amount,
       items: order.items.map(i => ({ product_id: i.product_id, product_name: i.product_name, unit_price: i.unit_price, quantity: i.quantity })),
     });
     setOrders(previous => {
@@ -71,19 +71,19 @@ export default function App() {
     });
     return saved;
   };
-  const handleUpdateOrderStatus = async (id: string, status: 'completed' | 'cancelled', note?: string) => {
-    const updated = await request<Order[]>('/orders/' + encodeURIComponent(id), 'PATCH', { status, note });
+  const handleUpdateOrderStatus = async (id: number, status: 'completed' | 'cancelled', note?: string) => {
+    const updated = await request<Order[]>('/orders/' + encodeURIComponent(String(id)), 'PATCH', { status, note });
     setOrders(updated);
     StorageService.cacheOrders(updated);
   };
   const handleSaveProduct = async (product: Product) => {
-    const exists = products.some(p => p.id === product.id);
-    setProducts(await request<Product[]>(exists ? '/products/' + encodeURIComponent(product.id) : '/products', exists ? 'PUT' : 'POST', product));
+    const exists = product.id > 0 && products.some(p => p.id === product.id);
+    setProducts(await request<Product[]>(exists ? '/products/' + encodeURIComponent(String(product.id)) : '/products', exists ? 'PUT' : 'POST', product));
   };
-  const handleDeleteProduct = async (id: string) => {
-    setProducts(await request<Product[]>('/products/' + encodeURIComponent(id), 'DELETE'));
+  const handleDeleteProduct = async (id: number) => {
+    setProducts(await request<Product[]>('/products/' + encodeURIComponent(String(id)), 'DELETE'));
   };
-  const handleToggleActive = async (id: string) => {
+  const handleToggleActive = async (id: number) => {
     const product = products.find(p => p.id === id);
     if (product) {
       try { await handleSaveProduct({ ...product, is_active: !product.is_active }); }

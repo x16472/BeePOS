@@ -121,7 +121,7 @@ flowchart TD
 - **SQLite 設置**:
   - 開啟 `PRAGMA journal_mode=WAL;` (防止車載異常斷電造成 DB 損毀)。
   - **資料表結構**:
-    - `orders`: `order_id` (UUIDv4), `total_amount`, `cash_received`, `change_given`, `created_at` (ISO8601), `is_synced` (INTEGER: 0/1), `synced_at` (Timestamp).
+    - `orders`: `order_id`（INTEGER 主鍵）、`total_amount`、`cash_received`、`change_given`、`created_at`（ISO8601）、`is_synced`（INTEGER: 0/1）、`synced_at`（Timestamp）。UUID 僅作為結帳請求重送去重識別碼，不作資料表主鍵。
     - `order_items`: `id`, `order_id`, `item_id`, `item_name`, `unit_price`, `quantity`, `subtotal`.
     - `items`: `item_id`, `name`, `price`, `category`, `is_active`.
 - **MSSQL 同步引擎 (Sync Engine)**:

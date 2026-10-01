@@ -1,4 +1,3 @@
-import uuid
 from pathlib import Path
 
 import store
@@ -28,7 +27,7 @@ def load_menu(path):
         for item in category["products"]:
             if not isinstance(item, dict):
                 raise ValueError("菜單商品格式不正確")
-            key = store.text(item.get("id"), "菜單商品識別碼", 36)
+            key = store.number(item.get("id"), "菜單商品識別碼", 1, 9223372036854775807)
             if key in ids:
                 raise ValueError("菜單商品識別碼重複")
             ids.add(key)
@@ -54,32 +53,34 @@ def initialize_menu(path=None):
             return
         rows = load_menu(path or MENU_PATH)
         for key, category, name, price, active, favorite in rows:
-            # 既有資料優先，避免初次升級時改寫已經營運中的商品。
-            if con.execute("SELECT 1 FROM products WHERE id=?", (key,)).fetchone():
-                continue
             category_row = con.execute(
                 "SELECT id FROM categories WHERE name=?", (category,)
             ).fetchone()
-            category_id = (
-                category_row["id"]
-                if category_row
-                else str(uuid.uuid5(uuid.NAMESPACE_URL, "bee-category:" + category))
-            )
             if not category_row:
-                con.execute(
-                    "INSERT INTO categories VALUES (?,?)", (category_id, category)
-                )
+                category_id = con.execute(
+                    "INSERT INTO categories (name) VALUES (?)", (category,)
+                ).lastrowid
                 store.dirty(con, "categories", category_id)
+            else:
+                category_id = category_row["id"]
             if con.execute(
                 "SELECT 1 FROM products WHERE category_id=? AND name=?",
                 (category_id, name),
             ).fetchone():
                 continue
-            con.execute(
-                "INSERT INTO products VALUES (?,?,?,?,?,?,0)",
-                (key, category_id, name, price, active, favorite),
-            )
-            store.dirty(con, "products", key)
+            occupied = con.execute("SELECT 1 FROM products WHERE id=?", (key,)).fetchone()
+            if occupied:
+                product_id = con.execute(
+                    "INSERT INTO products (category_id,name,price,is_active,is_favorite,deleted) VALUES (?,?,?,?,?,0)",
+                    (category_id, name, price, active, favorite),
+                ).lastrowid
+            else:
+                con.execute(
+                    "INSERT INTO products (id,category_id,name,price,is_active,is_favorite,deleted) VALUES (?,?,?,?,?,?,0)",
+                    (key, category_id, name, price, active, favorite),
+                )
+                product_id = key
+            store.dirty(con, "products", product_id)
         con.execute(
             "INSERT INTO initialization_state VALUES (?,?)",
             ("menu_yaml_v1", store.now()),

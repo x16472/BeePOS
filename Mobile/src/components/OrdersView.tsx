@@ -5,7 +5,7 @@ import { StorageService } from '../services/storage';
 
 interface OrdersViewProps {
   orders: Order[];
-  onUpdateOrderStatus: (orderId: string, status: 'completed' | 'cancelled', note?: string) => Promise<void>;
+  onUpdateOrderStatus: (orderId: number, status: 'completed' | 'cancelled', note?: string) => Promise<void>;
   theme?: AppTheme;
 }
 
@@ -33,7 +33,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onUpdateOrderSta
   });
 
   // Handle Void/Cancel Order
-  const handleVoidOrder = async (orderId: string) => {
+  const handleVoidOrder = async (orderId: number) => {
     const reason = window.prompt('請輸入作廢原因（例如：顧客取消、按錯金額）：', '顧客取消');
     if (reason !== null) {
       try { await onUpdateOrderStatus(orderId, 'cancelled', reason); }
@@ -48,7 +48,8 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onUpdateOrderSta
     const discrepancy = cashActual - totalRevenue;
     
     const settlement: DailySettlement = {
-      id: `set-${Date.now()}`,
+      id: 0,
+      request_id: `set-${Date.now()}`,
       date: new Date().toLocaleDateString('zh-TW'),
       total_sales: totalRevenue,
       order_count: totalOrdersCount,
