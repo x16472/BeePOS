@@ -1,4 +1,5 @@
 @echo off
+title BeePos
 setlocal
 cd /d "%~dp0"
 if not defined BEE_ROOT set "BEE_ROOT=%~dp0"
